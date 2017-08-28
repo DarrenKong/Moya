@@ -110,9 +110,15 @@ import the framework with `import Moya`.
 Carthage users can point to this repository and use whichever
 generated framework they'd like, `Moya`, `RxMoya`, or `ReactiveMoya`.
 
+Make the following entry in your Cartfile:
+
 ```
 github "Moya/Moya"
 ```
+
+Then run `carthage update`.
+
+If this is your first time using Carthage in the project, you'll need to go through some additional steps as explained [over at Carthage](https://github.com/Carthage/Carthage#adding-frameworks-to-an-application).
 
 ### Manually
 
@@ -197,10 +203,10 @@ Even cooler are the reactive extensions. Moya provides reactive extensions for
 
 ### ReactiveSwift
 
-After `ReactiveSwift` [setup](docs/ReactiveSwift.md), `request(:)` method
-immediately returns a `SignalProducer` (`RACSignal` is also available if needed)
-that you can start or bind or map or whatever you want to do. To handle errors,
-for instance, we could do the following:
+[`ReactiveSwift` extension](docs/ReactiveSwift.md) provides both `reactive.request(:callbackQueue:)` and 
+`reactive.requestWithProgress(:callbackQueue:)` methods that immediately return 
+`SignalProducer`s that you can start, bind, map, or whatever you want to do. 
+To handle errors, for instance, we could do the following:
 
 ```swift
 provider = MoyaProvider<GitHub>()
@@ -218,20 +224,24 @@ provider.reactive.request(.userProfile("ashfurrow")).start { event in
 
 ### RxSwift
 
-After `RxSwift` [setup](docs/RxSwift.md), `request(:)` method immediately
-returns an `Observable` that you can subscribe to or bind or map or whatever you
-want to do. To handle errors, for instance, we could do the following:
+[`RxSwift` extension](docs/RxSwift.md) also provide both `rx.request(:callbackQueue:)` and 
+`rx.requestWithProgress(:callbackQueue:)` methods, but return type is 
+different for both. In case of a normal `rx.request(:callbackQueue)`, the
+return type is `Single<Response>` which emits either single element or an
+error. In case of a `rx.requestWithProgress(:callbackQueue:)`, the return 
+type is `Observable<ProgressResponse>`, since we may get multiple events
+from progress and one last event which is a response.
+
+To handle errors, for instance, we could do the following:
 
 ```swift
 provider = MoyaProvider<GitHub>()
 provider.rx.request(.userProfile("ashfurrow")).subscribe { event in
     switch event {
-    case let .next(response):
+    case let .success(response):
         image = UIImage(data: response.data)
     case let .error(error):
         print(error)
-    default:
-        break
     }
 }
 ```

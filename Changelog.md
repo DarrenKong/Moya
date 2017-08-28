@@ -1,5 +1,19 @@
 # Next
 
+# 9.0.0-beta.1
+- **Breaking Change** Replaced `parameters` & `parameterEncoding` in `TargetType` with extended `Task` cases.
+- **Breaking Change** Flattened `UploadType` and `DownloadType` into `Task` cases.
+- **Breaking Change** Replaced `shouldAuthorize: Bool` in `AccessTokenAuthorizable` with `authorizationType: AuthorizationType`.
+- **Breaking Change** Replaced `token` in `AccessTokenPlugin` with `tokenClosure`.
+- **Breaking Change** `TargetTypes` no longer receive the `Authorization: Bearer <token>` header by default when using `AccessTokenPlugin`.
+- Added Swift 4.0 support for Moya core (without RxSwift/ReactiveSwift extensions for now).
+- Added all the `filter`/`map` operators that were available for `Observable<Response>` to `Single<Response>` as well.
+- Added `AuthorizationType` to `AccessTokenAuthorizable` representing request headers of `.none`, `.basic`, and `.bearer`.
+- Added tests for `Single<Response>` operators.
+- Added `Progress` object into the response when calling progress callback on completion.
+- Added tests for creating `URLRequest` from `Task`.
+- Fixed a bug where you weren't notified on progress callback for data request.
+
 # 9.0.0-alpha.1
 
 - **Breaking Change** Added support to get the response (if any) from `MoyaError`.
@@ -9,7 +23,7 @@
 - **Breaking Change** Renamed all occurrences of `queue` to `callbackQueue`.
 - **Breaking Change** Deprecated `ReactiveSwiftMoyaProvider` and `RxSwiftMoyaProvider`. Use `MoyaProvider` with reactive properties now: `provider.reactive._`, `provider.rx._`. In case you were subclassing reactive providers, please take a look at [this PR from Eidolon](https://github.com/artsy/eidolon/pull/669). It covers migration from subclassing given providers, to usage by composition.
 - **Breaking Change** Removed parameter name in `requestWithProgress` for `ReactiveSwiftMoyaProvider`.
-- **Breaking Change** Removed deprecated in Moya 8.0.0: `Moya.Error`, `endpointByAddingParameters(parameters:)`, `endpointByAddingHttpHeaderFields(httpHeaderFields:)`, `endpointByAddingParameterEncoding(newParameterEncoding:)`, `endpointByAdding(parameters:httpHeaderFields:parameterEncoding)`, `StructTarget`, `filterStatusCodes(range:)`, `filterStatusCode(code:)`, `willSendRequest(request:target:)`, `didReceiveResponse(result:target:)`, `ReactiveCocoaMoyaProvider`, `ReactiveSwiftMoyaProvider.request(token:)`. 
+- **Breaking Change** Removed deprecated in Moya 8.0.0: `Moya.Error`, `endpointByAddingParameters(parameters:)`, `endpointByAddingHttpHeaderFields(httpHeaderFields:)`, `endpointByAddingParameterEncoding(newParameterEncoding:)`, `endpointByAdding(parameters:httpHeaderFields:parameterEncoding)`, `StructTarget`, `filterStatusCodes(range:)`, `filterStatusCode(code:)`, `willSendRequest(request:target:)`, `didReceiveResponse(result:target:)`, `ReactiveCocoaMoyaProvider`, `ReactiveSwiftMoyaProvider.request(token:)`.
 - Added optional callback queue parameter to reactive providers.
 - Added public `URL(target:)` initializator that creates url from `TargetType`.
 - Added an optional `requestDataFormatter`in `NetworkLoggerPlugin` to allow the client to interact with the request data before logging it.

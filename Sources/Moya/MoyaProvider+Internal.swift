@@ -80,24 +80,7 @@ public extension MoyaProvider {
               }
             }
 
-            switch stubBehavior {
-            case .never:
-                switch target.task {
-                case .request:
-                    cancellableToken.innerCancellable = self.sendRequest(target, request: preparedRequest, callbackQueue: callbackQueue, progress: progress, completion: networkCompletion)
-                case .upload(.file(let file)):
-                    cancellableToken.innerCancellable = self.sendUploadFile(target, request: preparedRequest, callbackQueue: callbackQueue, file: file, progress: progress, completion: networkCompletion)
-                case .upload(.multipart(let multipartBody)):
-                    guard !multipartBody.isEmpty && target.method.supportsMultipart else {
-                        fatalError("\(target) is not a multipart upload target.")
-                    }
-                    cancellableToken.innerCancellable = self.sendUploadMultipart(target, request: preparedRequest, callbackQueue: callbackQueue, multipartBody: multipartBody, progress: progress, completion: networkCompletion)
-                case .download(.request(let destination)):
-                    cancellableToken.innerCancellable = self.sendDownloadRequest(target, request: preparedRequest, callbackQueue: callbackQueue, destination: destination, progress: progress, completion: networkCompletion)
-                }
-            default:
-                cancellableToken.innerCancellable = self.stubRequest(target, request: preparedRequest, callbackQueue: callbackQueue, completion: networkCompletion, endpoint: endpoint, stubBehavior: stubBehavior)
-            }
+            cancellableToken.innerCancellable = self.performRequest(target, request: preparedRequest, callbackQueue: callbackQueue, progress: progress, completion: networkCompletion, endpoint: endpoint, stubBehavior: stubBehavior)
         }
 
         requestClosure(endpoint, performNetworking)
@@ -106,6 +89,27 @@ public extension MoyaProvider {
     }
     // swiftlint:enable cyclomatic_complexity
     // swiftlint:enable function_body_length
+
+    private func performRequest(_ target: Target, request: URLRequest, callbackQueue: DispatchQueue?, progress: Moya.ProgressBlock?, completion: @escaping Moya.Completion, endpoint: Endpoint<Target>, stubBehavior: Moya.StubBehavior) -> Cancellable {
+        switch stubBehavior {
+        case .never:
+            switch target.task {
+            case .requestPlain, .requestData, .requestParameters, .requestCompositeData, .requestCompositeParameters:
+                return self.sendRequest(target, request: request, callbackQueue: callbackQueue, progress: progress, completion: completion)
+            case .uploadFile(let file):
+                return self.sendUploadFile(target, request: request, callbackQueue: callbackQueue, file: file, progress: progress, completion: completion)
+            case .uploadMultipart(let multipartBody), .uploadCompositeMultipart(let multipartBody, _):
+                guard !multipartBody.isEmpty && target.method.supportsMultipart else {
+                    fatalError("\(target) is not a multipart upload target.")
+                }
+                return self.sendUploadMultipart(target, request: request, callbackQueue: callbackQueue, multipartBody: multipartBody, progress: progress, completion: completion)
+            case .downloadDestination(let destination), .downloadParameters(_, _, let destination):
+                return self.sendDownloadRequest(target, request: request, callbackQueue: callbackQueue, destination: destination, progress: progress, completion: completion)
+            }
+        default:
+            return self.stubRequest(target, request: request, callbackQueue: callbackQueue, completion: completion, endpoint: endpoint, stubBehavior: stubBehavior)
+        }
+    }
 
     func cancelCompletion(_ completion: Moya.Completion, target: Target) {
         let error = MoyaError.underlying(NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled, userInfo: nil), nil)
@@ -159,16 +163,6 @@ private extension MoyaProvider {
                     self.append(fileURL: url, bodyPart: bodyPart, to: form)
                 case .stream(let stream, let length):
                     self.append(stream: stream, length: length, bodyPart: bodyPart, to: form)
-                }
-            }
-
-            if let parameters = target.parameters {
-                parameters
-                    .flatMap { key, value in multipartQueryComponents(key, value) }
-                    .forEach { key, value in
-                        if let data = value.data(using: .utf8, allowLossyConversion: false) {
-                            form.append(data, withName: key)
-                        }
                 }
             }
         }
@@ -236,6 +230,10 @@ private extension MoyaProvider {
                 if let uploadRequest = uploadRequest.uploadProgress(closure: progressClosure) as? T {
                     progressAlamoRequest = uploadRequest
                 }
+            case let dataRequest as DataRequest:
+                if let dataRequest = dataRequest.downloadProgress(closure: progressClosure) as? T {
+                    progressAlamoRequest = dataRequest
+                }
             default: break
             }
         }
@@ -244,7 +242,18 @@ private extension MoyaProvider {
             let result = convertResponseToResult(response, request: request, data: data, error: error)
             // Inform all plugins about the response
             plugins.forEach { $0.didReceive(result, target: target) }
-            progressCompletion?(ProgressResponse(response: result.value))
+            if let progressCompletion = progressCompletion {
+                switch progressAlamoRequest {
+                case let downloadRequest as DownloadRequest:
+                    progressCompletion(ProgressResponse(progress: downloadRequest.progress, response: result.value))
+                case let uploadRequest as UploadRequest:
+                    progressCompletion(ProgressResponse(progress: uploadRequest.uploadProgress, response: result.value))
+                case let dataRequest as DataRequest:
+                    progressCompletion(ProgressResponse(progress: dataRequest.progress, response: result.value))
+                default:
+                    progressCompletion(ProgressResponse(response: result.value))
+                }
+            }
             completion(result)
         }
 
