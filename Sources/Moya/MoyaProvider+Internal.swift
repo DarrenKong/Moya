@@ -18,9 +18,6 @@ extension Method {
 
 /// Internal extension to keep the inner-workings outside the main Moya.swift file.
 public extension MoyaProvider {
-    // Yup, we're disabling these. The function is complicated, but breaking it apart requires a large effort.
-    // swiftlint:disable cyclomatic_complexity
-    // swiftlint:disable function_body_length
     /// Performs normal requests.
     func requestNormal(_ target: Target, callbackQueue: DispatchQueue?, progress: Moya.ProgressBlock?, completion: @escaping Moya.Completion) -> Cancellable {
         let endpoint = self.endpoint(target)
@@ -87,14 +84,13 @@ public extension MoyaProvider {
 
         return cancellableToken
     }
-    // swiftlint:enable cyclomatic_complexity
-    // swiftlint:enable function_body_length
 
+    // swiftlint:disable:next function_parameter_count
     private func performRequest(_ target: Target, request: URLRequest, callbackQueue: DispatchQueue?, progress: Moya.ProgressBlock?, completion: @escaping Moya.Completion, endpoint: Endpoint<Target>, stubBehavior: Moya.StubBehavior) -> Cancellable {
         switch stubBehavior {
         case .never:
             switch target.task {
-            case .requestPlain, .requestData, .requestParameters, .requestCompositeData, .requestCompositeParameters:
+            case .requestPlain, .requestData, .requestJSONEncodable, .requestParameters, .requestCompositeData, .requestCompositeParameters:
                 return self.sendRequest(target, request: request, callbackQueue: callbackQueue, progress: progress, completion: completion)
             case .uploadFile(let file):
                 return self.sendUploadFile(target, request: request, callbackQueue: callbackQueue, file: file, progress: progress, completion: completion)
@@ -158,11 +154,11 @@ private extension MoyaProvider {
             for bodyPart in multipartBody {
                 switch bodyPart.provider {
                 case .data(let data):
-                    self.append(data: data, bodyPart: bodyPart, to: form)
+                    form.append(data: data, bodyPart: bodyPart)
                 case .file(let url):
-                    self.append(fileURL: url, bodyPart: bodyPart, to: form)
+                    form.append(fileURL: url, bodyPart: bodyPart)
                 case .stream(let stream, let length):
-                    self.append(stream: stream, length: length, bodyPart: bodyPart, to: form)
+                    form.append(stream: stream, length: length, bodyPart: bodyPart)
                 }
             }
         }
@@ -201,6 +197,7 @@ private extension MoyaProvider {
         return sendAlamofireRequest(alamoRequest, target: target, callbackQueue: callbackQueue, progress: progress, completion: completion)
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     func sendAlamofireRequest<T>(_ alamoRequest: T, target: Target, callbackQueue: DispatchQueue?, progress progressCompletion: Moya.ProgressBlock?, completion: @escaping Moya.Completion) -> CancellableToken where T: Requestable, T: Request {
         // Give plugins the chance to alter the outgoing request
         let plugins = self.plugins
@@ -263,49 +260,4 @@ private extension MoyaProvider {
 
         return CancellableToken(request: progressAlamoRequest)
     }
-}
-
-// MARK: RequestMultipartFormData appending
-
-private extension MoyaProvider {
-    func append(data: Data, bodyPart: MultipartFormData, to form: RequestMultipartFormData) {
-        if let mimeType = bodyPart.mimeType {
-            if let fileName = bodyPart.fileName {
-                form.append(data, withName: bodyPart.name, fileName: fileName, mimeType: mimeType)
-            } else {
-                form.append(data, withName: bodyPart.name, mimeType: mimeType)
-            }
-        } else {
-            form.append(data, withName: bodyPart.name)
-        }
-    }
-    func append(fileURL url: URL, bodyPart: MultipartFormData, to form: RequestMultipartFormData) {
-        if let fileName = bodyPart.fileName, let mimeType = bodyPart.mimeType {
-            form.append(url, withName: bodyPart.name, fileName: fileName, mimeType: mimeType)
-        } else {
-            form.append(url, withName: bodyPart.name)
-        }
-    }
-    func append(stream: InputStream, length: UInt64, bodyPart: MultipartFormData, to form: RequestMultipartFormData) {
-        form.append(stream, withLength: length, name: bodyPart.name, fileName: bodyPart.fileName ?? "", mimeType: bodyPart.mimeType ?? "")
-    }
-}
-
-/// Encode parameters for multipart/form-data
-private func multipartQueryComponents(_ key: String, _ value: Any) -> [(String, String)] {
-    var components: [(String, String)] = []
-
-    if let dictionary = value as? [String: Any] {
-        for (nestedKey, value) in dictionary {
-            components += multipartQueryComponents("\(key)[\(nestedKey)]", value)
-        }
-    } else if let array = value as? [Any] {
-        for value in array {
-            components += multipartQueryComponents("\(key)[]", value)
-        }
-    } else {
-        components.append((key, "\(value)"))
-    }
-
-    return components
 }
